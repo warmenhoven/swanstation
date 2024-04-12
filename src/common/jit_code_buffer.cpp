@@ -44,7 +44,7 @@ bool JitCodeBuffer::Allocate(u32 size /* = 64 * 1024 * 1024 */, u32 far_code_siz
     return false;
 #elif defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__) || defined(__HAIKU__) || defined(__FreeBSD__)
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-#if defined(__APPLE__) && defined(__aarch64__)
+#if defined(__APPLE__) && defined(__aarch64__) && !defined(IOS)
   // MAP_JIT and toggleable write protection is required on Apple Silicon.
   flags |= MAP_JIT;
 #endif
@@ -235,7 +235,7 @@ void JitCodeBuffer::FlushInstructionCache(void* address, u32 size)
 #if defined(_WIN32)
   ::FlushInstructionCache(GetCurrentProcess(), address, size);
 #elif defined(__GNUC__) || defined(__clang__)
-  __builtin___clear_cache(reinterpret_cast<char*>(address), reinterpret_cast<char*>(address) + size);
+    //__builtin___clear_cache(reinterpret_cast<char*>(address), reinterpret_cast<char*>(address) + size);
 #else
 #error Unknown platform.
 #endif
@@ -251,10 +251,10 @@ void JitCodeBuffer::WriteProtect(bool enabled)
   if (!initialized)
   {
     initialized = true;
-    needs_write_protect = (pthread_jit_write_protect_supported_np() != 0);
+    //needs_write_protect = (pthread_jit_write_protect_supported_np() != 0);
   }
 
-  if (needs_write_protect)
-    pthread_jit_write_protect_np(enabled ? 1 : 0);
+  // if (needs_write_protect)
+  //   pthread_jit_write_protect_np(enabled ? 1 : 0);
 }
 #endif

@@ -175,7 +175,13 @@ bool MemoryArena::Create(size_t size, bool writable, bool executable)
   return true;
 #elif defined(__APPLE__) || defined(__FreeBSD__)
 #if defined(__APPLE__)
+#ifdef IOS
+  char fml[1024];
+  snprintf(fml, 1024, "%s%s", getenv("TMPDIR"), file_mapping_name.c_str());
+  m_shmem_fd = open(fml, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+#else
   m_shmem_fd = shm_open(file_mapping_name.c_str(), O_CREAT | O_EXCL | (writable ? O_RDWR : O_RDONLY), 0600);
+#endif
 #else
   m_shmem_fd = shm_open(SHM_ANON, O_CREAT | O_EXCL | (writable ? O_RDWR : O_RDONLY), 0600);
 #endif
@@ -188,7 +194,11 @@ bool MemoryArena::Create(size_t size, bool writable, bool executable)
 
 #ifdef __APPLE__
   // we're not going to be opening this mapping in other processes, so remove the file
+#ifdef IOS
+  unlink(fml);
+#else
   shm_unlink(file_mapping_name.c_str());
+#endif
 #endif
 
   // ensure it's the correct size
