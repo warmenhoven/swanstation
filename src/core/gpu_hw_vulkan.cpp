@@ -2146,12 +2146,17 @@ VkPipeline GPU_HW_Vulkan::GetVRAMUpdateDepthPipeline()
   VkShaderModule vs = GetFullscreenQuadVertexShader();
   if (vs == VK_NULL_HANDLE)
     return VK_NULL_HANDLE;
-  if (!m_shadergen)
-  {
-    Log_ErrorPrint("GetVRAMUpdateDepthPipeline called before CompilePipelines constructed the shadergen");
-    return VK_NULL_HANDLE;
-  }
-  VkShaderModule fs = g_vulkan_shader_cache->GetFragmentShader(m_shadergen->GenerateVRAMUpdateDepthFragmentShader());
+
+  // Pre-baked path: MSAA vs non-MSAA is a structural blob choice (sampler
+  // binding type differs), not a spec-constant choice. Neither blob has
+  // spec constants - gl_SampleID in the MSAA variant is enough to force
+  // per-sample shading.
+  const bool msaa = (m_multisamples > 1);
+  const uint32_t* spv      = msaa ? Vulkan::EmbeddedShaders::k_vram_update_depth_msaa_fs
+                                  : Vulkan::EmbeddedShaders::k_vram_update_depth_fs;
+  const size_t spv_size    = msaa ? Vulkan::EmbeddedShaders::k_vram_update_depth_msaa_fs_size_bytes
+                                  : Vulkan::EmbeddedShaders::k_vram_update_depth_fs_size_bytes;
+  VkShaderModule fs = Vulkan::EmbeddedShaders::CreateShaderModule(spv, spv_size);
   if (fs == VK_NULL_HANDLE)
     return VK_NULL_HANDLE;
 
@@ -2187,14 +2192,23 @@ VkPipeline GPU_HW_Vulkan::GetVRAMReadbackPipeline()
   VkShaderModule vs = GetFullscreenQuadVertexShader();
   if (vs == VK_NULL_HANDLE)
     return VK_NULL_HANDLE;
-  if (!m_shadergen)
-  {
-    Log_ErrorPrint("GetVRAMReadbackPipeline called before CompilePipelines constructed the shadergen");
-    return VK_NULL_HANDLE;
-  }
-  VkShaderModule fs = g_vulkan_shader_cache->GetFragmentShader(m_shadergen->GenerateVRAMReadFragmentShader());
+
+  // Pre-baked path: sampler2D vs sampler2DMS picks the blob; spec
+  // constants plumb RESOLUTION_SCALE (both variants) and MULTISAMPLES
+  // (MSAA variant only).
+  const bool msaa = (m_multisamples > 1);
+  const uint32_t* spv   = msaa ? Vulkan::EmbeddedShaders::k_vram_read_msaa_fs
+                               : Vulkan::EmbeddedShaders::k_vram_read_fs;
+  const size_t spv_size = msaa ? Vulkan::EmbeddedShaders::k_vram_read_msaa_fs_size_bytes
+                               : Vulkan::EmbeddedShaders::k_vram_read_fs_size_bytes;
+  VkShaderModule fs = Vulkan::EmbeddedShaders::CreateShaderModule(spv, spv_size);
   if (fs == VK_NULL_HANDLE)
     return VK_NULL_HANDLE;
+
+  Vulkan::SpecConstants fs_spec;
+  fs_spec.AddUInt(0, m_resolution_scale);
+  if (msaa)
+    fs_spec.AddUInt(1, m_multisamples);
 
   VkDevice device = g_vulkan_context->GetDevice();
   VkPipelineCache pipeline_cache = g_vulkan_shader_cache->GetPipelineCache();
@@ -2204,7 +2218,7 @@ VkPipeline GPU_HW_Vulkan::GetVRAMReadbackPipeline()
   gpbuilder.SetPipelineLayout(m_single_sampler_pipeline_layout);
   gpbuilder.SetPrimitiveTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
   gpbuilder.SetVertexShader(vs);
-  gpbuilder.SetFragmentShader(fs);
+  gpbuilder.SetFragmentShader(fs, fs_spec.GetInfo());
   gpbuilder.SetNoCullRasterizationState();
   gpbuilder.SetNoDepthTestState();
   gpbuilder.SetNoBlendingState();

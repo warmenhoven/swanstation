@@ -79,6 +79,28 @@ extern const size_t k_adaptive_downsample_mip_fs_size_bytes;
 extern const uint32_t k_box_sample_downsample_fs[];
 extern const size_t k_box_sample_downsample_fs_size_bytes;
 
+// VRAM-readback FS. Packs pairs of upscaled 16-bit-encoded PSX VRAM texels
+// into 32-bit RGBA8 for host readback. Two blobs - sampler2D and
+// sampler2DMS variants are structurally different and cannot share a
+// single SPIR-V. The C++ side selects between them based on
+// GPU_HW::m_multisamples.
+//
+//   Non-MSAA blob: RESOLUTION_SCALE spec constant at id=0.
+//   MSAA blob:     RESOLUTION_SCALE at id=0, MULTISAMPLES at id=1.
+extern const uint32_t k_vram_read_fs[];
+extern const size_t k_vram_read_fs_size_bytes;
+extern const uint32_t k_vram_read_msaa_fs[];
+extern const size_t k_vram_read_msaa_fs_size_bytes;
+
+// VRAM update-depth FS. Writes the source texture's alpha into
+// gl_FragDepth. Two blobs - sampler type structural variance again.
+// Non-MSAA blob has no spec constants; MSAA blob has no spec constants
+// either (gl_SampleID is used directly; per-sample shading is implied).
+extern const uint32_t k_vram_update_depth_fs[];
+extern const size_t k_vram_update_depth_fs_size_bytes;
+extern const uint32_t k_vram_update_depth_msaa_fs[];
+extern const size_t k_vram_update_depth_msaa_fs_size_bytes;
+
 // Create a VkShaderModule directly from a pre-compiled SPIR-V blob.
 //
 // This intentionally bypasses Vulkan::ShaderCache: pre-baked SPIR-V is already
